@@ -111,28 +111,31 @@ class Spidermonkey < Formula
       end
     end
 
-    mkdir "brew-build" do
-      args = %W[
-        --prefix=#{prefix}
-        --enable-hardening
-        --enable-optimize
-        --enable-readline
-        --enable-release
-        --enable-rust-simd
-        --enable-shared-js
-        --disable-bootstrap
-        --disable-debug
-        --disable-jemalloc
-        --with-intl-api
-        --with-system-icu
-        --with-system-nspr
-        --with-system-zlib
-      ]
+    # https://firefox-source-docs.mozilla.org/js/build.html
+    ENV["MOZCONFIG"] = mozconfig = buildpath/"mozconfig"
+    mozconfig.write <<~EOS
+      # Build the JS shell and shared library
+      ac_add_options --enable-project=js
+      ac_add_options --enable-shared-js
+      ac_add_options --prefix=#{prefix}
 
-      system "../js/src/configure", *args
-      ENV.deparallelize { system "make" }
-      system "make", "install"
-    end
+      # Features, optimisations, etc.
+      ac_add_options --disable-bootstrap
+      ac_add_options --disable-debug
+      ac_add_options --disable-jemalloc
+      ac_add_options --enable-hardening
+      ac_add_options --enable-optimize
+      ac_add_options --enable-readline
+      ac_add_options --enable-release
+      ac_add_options --enable-rust-simd
+      ac_add_options --with-intl-api
+      ac_add_options --with-system-icu
+      ac_add_options --with-system-nspr
+      ac_add_options --with-system-zlib
+    EOS
+
+    system "./mach", "build"
+    system "./mach", "install"
 
     rm(lib/"libjs_static.ajs")
 
@@ -140,9 +143,8 @@ class Spidermonkey < Formula
     bin.install_symlink "js#{version.major}" => "js"
 
     # Avoid writing nspr's versioned Cellar path in js*-config
-    inreplace bin/"js#{version.major}-config",
-              Formula["nspr"].prefix.realpath,
-              formula_opt_prefix("nspr")
+    nspr_prefix = formula_opt_prefix("nspr")
+    inreplace bin/"js#{version.major}-config", nspr_prefix.realpath, nspr_prefix
   end
 
   test do
